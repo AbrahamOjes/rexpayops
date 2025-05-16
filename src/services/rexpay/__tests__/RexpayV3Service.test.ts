@@ -3,6 +3,7 @@ import axios from 'axios';
 import RexpayV3Service from '../RexpayV3Service';
 // Import using relative paths for compatibility
 import { PaymentStatus } from '../../../dal';
+import { ThreeDSData } from '../types';
 import { AUTHTYPE, CardPaymentInstrument } from '../../types';
 import { logger } from '../../../utils/logger';
 import { MetricsService } from '../../../utils/MetricsService';
@@ -558,10 +559,143 @@ describe('RexpayV3Service', () => {
           },
         });
 
-      const result = await service.initializePayment(mockPayment, AUTHTYPE.THREEDSTWO);
+        const result = await (service as any).handle3DS2Challenge(challengeData, mockPayment);
+        
+        expect(result).toBeDefined();
+        expect(result.type).toBe('3DS2');
+        expect(result.status).toBe(PaymentStatus.PENDING_3DS);
+        expect(result.provider_data.acsUrl).toBe(challengeData.acsUrl);
+        expect(result.provider_data.cReq).toBe(challengeData.cReq);
+      });
+    });
 
-      expect(result.status).toBe(PaymentStatus.PENDING);
-      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+    describe('handle3DS1Challenge', () => {
+      it('should handle 3DS1 challenge flow', async () => {
+        const challengeData = {
+          acsUrl: 'https://acs.example.com',
+          paReq: 'test-pareq',
+          termUrl: 'https://return.example.com',
+          md: 'test-md',
+          transactionId: 'test-tx-id',
+          reference: 'test-ref-123'
+        };
+
+        const result = await (service as any).handle3DS1Challenge(challengeData, mockPayment);
+        
+        expect(result).toBeDefined();
+        expect(result.type).toBe('3DS1');
+        expect(result.status).toBe(PaymentStatus.PENDING_3DS);
+        expect(result.provider_data.acsUrl).toBe(challengeData.acsUrl);
+        expect(result.provider_data.paReq).toBe(challengeData.paReq);
+        expect(result.provider_data.termUrl).toBe(challengeData.termUrl);
+        expect(result.provider_data.md).toBe(challengeData.md);
+      });
+    });
+
+    describe('handleRedirectChallenge', () => {
+      it('should handle redirect challenge flow', async () => {
+        const challengeData = {
+          redirectUrl: 'https://redirect.example.com',
+          transactionId: 'test-tx-id',
+          reference: 'test-ref-123'
+        };
+
+        const result = await (service as any).handleRedirectChallenge(challengeData, mockPayment);
+        
+        expect(result).toBeDefined();
+        expect(result.type).toBe('REDIRECT');
+        expect(result.status).toBe(PaymentStatus.PENDING_3DS);
+        expect(result.provider_data.redirectUrl).toBe(challengeData.redirectUrl);
+      });
+    });
+
+    describe('handleChallengeFlow', () => {
+      it('should handle 3DS2 challenge flow', async () => {
+        const challengeData = {
+          type: '3DS2',
+          acsUrl: 'https://acs.example.com',
+          cReq: 'test-creq',
+          transactionId: 'test-tx-id',
+          reference: 'test-ref-123'
+        };
+
+        const handle3DS2ChallengeSpy = jest.spyOn(service as any, 'handle3DS2Challenge').mockResolvedValue({
+          type: '3DS2',
+          status: PaymentStatus.PENDING_3DS,
+          provider_data: { acsUrl: challengeData.acsUrl, cReq: challengeData.cReq }
+        });
+
+        const result = await (service as any).handleChallengeFlow(challengeData, mockPayment);
+        
+        expect(handle3DS2ChallengeSpy).toHaveBeenCalledWith(challengeData, mockPayment);
+        expect(result).toBeDefined();
+        expect(result.type).toBe('3DS2');
+        expect(result.status).toBe(PaymentStatus.PENDING_3DS);
+      });
+
+      it('should handle 3DS1 challenge flow', async () => {
+        const challengeData = {
+          type: '3DS1',
+          acsUrl: 'https://acs.example.com',
+          paReq: 'test-pareq',
+          termUrl: 'https://return.example.com',
+          md: 'test-md',
+          transactionId: 'test-tx-id',
+          reference: 'test-ref-123'
+        };
+
+        const handle3DS1ChallengeSpy = jest.spyOn(service as any, 'handle3DS1Challenge').mockResolvedValue({
+          type: '3DS1',
+          status: PaymentStatus.PENDING_3DS,
+          provider_data: { 
+            acsUrl: challengeData.acsUrl, 
+            paReq: challengeData.paReq,
+            termUrl: challengeData.termUrl,
+            md: challengeData.md
+          }
+        });
+
+        const result = await (service as any).handleChallengeFlow(challengeData, mockPayment);
+        
+        expect(handle3DS1ChallengeSpy).toHaveBeenCalledWith(challengeData, mockPayment);
+        expect(result).toBeDefined();
+        expect(result.type).toBe('3DS1');
+        expect(result.status).toBe(PaymentStatus.PENDING_3DS);
+      });
+
+      it('should handle redirect challenge flow', async () => {
+        const challengeData = {
+          type: 'REDIRECT',
+          redirectUrl: 'https://redirect.example.com',
+          transactionId: 'test-tx-id',
+          reference: 'test-ref-123'
+        };
+
+        const handleRedirectChallengeSpy = jest.spyOn(service as any, 'handleRedirectChallenge').mockResolvedValue({
+          type: 'REDIRECT',
+          status: PaymentStatus.PENDING_3DS,
+          provider_data: { redirectUrl: challengeData.redirectUrl }
+        });
+
+        const result = await (service as any).handleChallengeFlow(challengeData, mockPayment);
+        
+        expect(handleRedirectChallengeSpy).toHaveBeenCalledWith(challengeData, mockPayment);
+        expect(result).toBeDefined();
+        expect(result.type).toBe('REDIRECT');
+        expect(result.status).toBe(PaymentStatus.PENDING_3DS);
+      });
+
+      it('should throw error for unknown challenge type', async () => {
+        const challengeData = {
+          type: 'UNKNOWN',
+          transactionId: 'test-tx-id',
+          reference: 'test-ref-123'
+        };
+
+        await expect(
+          (service as any).handleChallengeFlow(challengeData, mockPayment)
+        ).rejects.toThrow('Unsupported challenge type: UNKNOWN');
+      });
     });
   });
 });

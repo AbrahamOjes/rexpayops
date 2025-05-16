@@ -76,9 +76,28 @@ export interface RexpayGetPaymentResponse {
 }
 
 export interface SubaccountMetrics {
+  uuid: string;
   successRate: number;
-  volume24h: number;
-  avgResponseTime: number;
+  lastUsed: number;
+  totalTransactions: number;
+  successfulTransactions: number;
+  volume24h?: number;
+  avgResponseTime?: number;
+}
+
+export interface SubaccountSelectionConfig {
+  successRateWeight?: number;
+  recencyWeight?: number;
+  minSuccessRate?: number;
+  maxRetries?: number;
+  initialRetryDelay?: number;
+}
+
+export interface SubaccountSelectionResult {
+  subaccountId: string;
+  successRate: number;
+  score: number;
+  lastUsed: number;
 }
 
 export interface SubaccountLimits {
@@ -113,10 +132,62 @@ export interface RexpayInitiatePaymentResponse {
   };
 }
 
+export interface RexpayChargeResponseData {
+  reference: string;
+  status: string;
+  redirect_url?: string;
+  redirect_auth_data?: {
+    html?: string;
+    customizedHtml?: {
+      '3ds2'?: {
+        acsUrl: string;
+        cReq: string;
+      };
+    };
+  };
+  session_id?: string;
+  threeds_trans_id?: string;
+  transaction_id?: string;
+}
+
+export interface RexpayChargeResponseData {
+  reference: string;
+  status: string;
+  redirect_url?: string;
+  redirect_auth_data?: {
+    html?: string;
+    customizedHtml?: {
+      '3ds2'?: {
+        acsUrl: string;
+        cReq: string;
+      };
+    };
+  };
+  session_id?: string;
+  threeds_trans_id?: string;
+  transaction_id?: string;
+}
+
 export interface RexpayChargeResponse {
+  data: {
+    status: string;
+    reference: string;
+    session_id?: string;
+    threeds_trans_id?: string;
+    redirect_auth_data?: {
+      customizedHtml?: {
+        '3ds2'?: {
+          cReq?: string;
+          acsUrl?: string;
+        };
+      };
+    };
+  };
+  message?: string;
+}
   status: boolean;
   message: string;
-  data: {
+  data: RexpayChargeResponseData & {
     reference: string;
     status: string;
     redirect_url?: string;
